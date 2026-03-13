@@ -11,8 +11,8 @@ An AI agent that transforms the weekly Friday employee survey into an active int
 ## Tech Stack
 
 - Runtime: Node.js
-- AI: Claude API (Anthropic)
-- Delivery: Slack (digest), Email (executive brief)
+- AI: Azure OpenAI (GPT-4o via Azure endpoint)
+- Delivery: Slack only (team digest, manager alerts, CEO brief)
 - Deployment: Local-first, cloud later
 
 ## Project Structure
@@ -31,16 +31,17 @@ scripts/      → utility & automation scripts
 
 ```bash
 npm install
+cp .env.local.example .env.local   # fill in your Azure OpenAI + Slack credentials
 npm start
 ```
 
 ## Roadmap
 
-| Phase | Weeks | Focus |
-|-------|-------|-------|
-| 1 | W1–2 | Scaffold, repo, local entry point |
-| 2 | W3–4 | Survey ingestion, NLP pipeline, Slack digest |
-| 3 | W5–6 | Escalation routing, trend detection, CEO demo |
+| Phase | Weeks | Status | Focus |
+|-------|-------|--------|-------|
+| 1 | W1–2 | Done | Scaffold, repo, Azure OpenAI + Slack-only setup |
+| 2 | W3–4 | Up next | Survey ingestion, NLP pipeline, Slack digest |
+| 3 | W5–6 | Planned | Escalation routing, trend detection, CEO demo |
 
 ## CEO Demo Schedule
 
