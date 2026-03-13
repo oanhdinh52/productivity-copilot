@@ -8,7 +8,7 @@
     "dev": "node --watch src/index.js",
     "build": "node --check src/index.js",
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage --ci"
   },
   "keywords": ["ai", "productivity", "survey", "nlp", "slack"],
   "author": "",

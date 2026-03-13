@@ -26,5 +26,5 @@ jobs:
       - name: Build (syntax check)
         run: npm run build
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (fail if below 80%)
         run: npm run test:coverage
