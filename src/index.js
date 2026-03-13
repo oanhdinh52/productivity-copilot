@@ -1,6 +1,9 @@
 /**
  * Productivity Copilot — Entry Point
- * AI agent for weekly employee survey intelligence
+ *
+ * Integrations:
+ *   - Azure OpenAI  → NLP blocker detection & narrative generation
+ *   - Slack         → survey delivery, digest posting, manager alerts
  */
 
 console.log('Productivity Copilot is running...');
