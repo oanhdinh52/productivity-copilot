@@ -11,9 +11,17 @@ active intelligence layer for LeapXpert.
 
 ## Tech Stack
 - Runtime: Node.js
-- AI: Claude API (Anthropic)
-- Delivery: Slack (digest), Email (executive brief)
+- AI: Azure OpenAI (endpoint + key in .env.local)
+- Survey Collection: Slack (bot sends Friday survey to all employees)
+- Feedback Collection: Slack (employees respond directly in Slack)
+- Reporting: Slack (weekly digest posted to designated channel)
 - Deployment: Local for now, cloud later
+
+## Slack Channels
+- Survey delivery: bot posts 3 questions every Friday
+- Employee responses: collected as Slack replies/DMs
+- Manager digest: blocker summary posted Monday morning
+- Executive report: CEO brief posted to leadership channel
 
 ## Project Structure
 src/
@@ -25,11 +33,14 @@ docs/         → documentation
 scripts/      → utility & automation scripts
 
 ## Features — Phase 1 (W1–2)
-- [ ] Git repo initialized via Claude Code
-- [ ] Project scaffolded with folder structure above
-- [ ] README.md, .gitignore, package.json created
-- [ ] src/index.js entry point running locally
-- [ ] First commit pushed to GitHub
+- [x] Git repo initialized via Claude Code
+- [x] Project scaffolded with folder structure above
+- [x] README.md, .gitignore, package.json created
+- [x] src/index.js entry point running locally
+- [x] First commit pushed to GitHub
+- [x] Switch to Azure OpenAI + Slack-only delivery (no email)
+- [x] env templates (.env.example, .env.local.example) committed
+- [x] Flow guide added to docs/flow-guide.md
 
 ## Features — Phase 2 (W3–4)
 - [ ] Connect Friday survey data source
@@ -56,10 +67,3 @@ scripts/      → utility & automation scripts
 - 3 questions: progress, blockers, support needed
 - Privacy: AI reads responses — confirm boundaries with CEO
 - Deployment: local-first, no cloud infrastructure yet
-```
-
----
-
-## Step 3 — Then in Claude Code type:
-```
-Read requirements.md and scaffold this project: create all folders and files described, add .gitignore for Node.js, then git add all, commit "feat: initial scaffold — Productivity Copilot 🚀", and push to a new public GitHub repo named productivity-copilot
