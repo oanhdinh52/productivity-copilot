@@ -4,184 +4,190 @@ A reference for how the system is structured, who owns each piece, and when ever
 
 ---
 
-## Overview
+## Core Concept
 
-The Productivity Copilot turns a weekly Friday employee survey into actionable intelligence:
-- Detected blockers are auto-routed to the right owner
-- Narrative team summaries are generated and delivered via Slack
-- Executives receive a high-level brief by email
+The bot is a passive observer. Instead of asking employees what happened at the end of the week,
+it watches Slack all week and already knows — then drafts the survey for them.
+Employees just review, edit if needed, and approve.
 
 ---
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        TRIGGER: Every Friday                        │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │
-                             ▼
-                   ┌──────────────────┐
-                   │  src/survey/     │  Survey Ingestion & Parsing
-                   │  (ingestion)     │  Reads raw responses → structured data
-                   └────────┬─────────┘
-                            │  { employeeId, progress, blockers, supportNeeded }
-                            ▼
-                   ┌──────────────────┐
-                   │  src/nlp/        │  Blocker Detection & Classification
-                   │  (analysis)      │  Labels type, severity, owner
-                   └────────┬─────────┘
-                            │  { blocker, type, severity, routeTo }
-                            ▼
-                   ┌──────────────────┐
-                   │  src/summary/    │  Narrative Generation via Claude API
-                   │  (generation)    │  Produces team + executive summaries
-                   └────────┬─────────┘
-                            │
-               ┌────────────┼────────────┐
-               ▼            ▼            ▼
-          [Slack]        [Email]    [Escalation]
-        Team digest   Exec brief   Manager alert
+MON–THU (passive, continuous)
+┌──────────────────────────────────────────────────────────────────────┐
+│  src/collector/                                                      │
+│  - Listens to all channels the bot is invited to                     │
+│  - Stores each user's messages to data/messages/<userId>.json        │
+│  - @copilot mention → reacts ✅, flags message as high priority      │
+└──────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   │ data/messages/<userId>.json
+                                   ▼
+FRIDAY 4:00 PM (node-cron trigger)
+┌──────────────────────────────────────────────────────────────────────┐
+│  src/nlp/                                                            │
+│  - Reads each user's collected messages                              │
+│  - Sends to Azure OpenAI GPT-4                                       │
+│  - Receives pre-filled draft: Q1 progress, Q2 blockers, Q3 support   │
+└──────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   │ { q1, q2, q3 } draft per user
+                                   ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  src/survey/                                                         │
+│  - DMs each user their personalised draft via Block Kit              │
+│  - Presents Edit + Submit buttons (bot never auto-submits)           │
+│  - Saves approved submission to data/submissions/<userId>.json       │
+└──────────────────────────────────────────────────────────────────────┘
+                                   │
+FRIDAY 5:00 PM (reminder check)    │
+┌──────────┐                       │
+│ Reminder │ ← no submission yet   │
+│    DM    │                       │
+└──────────┘                       │
+                                   │ data/submissions/*.json
+                                   ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  src/report/                                                         │
+│  - Reads all approved submissions                                    │
+│  - Azure OpenAI generates Manager Digest                             │
+│  - Azure OpenAI generates CEO Brief                                  │
+│  - Posts both to designated Slack channels                           │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Module Ownership
 
-| Module | Path | Responsibility | Phase |
-|--------|------|----------------|-------|
-| Entry point | `src/index.js` | Bootstraps the app, orchestrates the pipeline | All |
-| Survey | `src/survey/` | Ingests and parses raw survey responses | 2 |
-| NLP | `src/nlp/` | Detects blockers, classifies them, assigns routing | 2 |
-| Summary | `src/summary/` | Generates narrative output via Claude API | 2 |
-| Scripts | `scripts/` | Automation utilities (e.g. trigger, test data seeder) | 2–3 |
-| Data | `data/` | Sample/fixture survey response files | 2 |
-| Docs | `docs/` | All documentation including this file | All |
+| Module | Path | Responsibility |
+|--------|------|----------------|
+| Entry point | `src/index.js` | Bootstraps app, registers cron jobs, starts Slack Bolt |
+| Collector | `src/collector/` | Passive message listener + @copilot mention handler |
+| NLP | `src/nlp/` | Azure OpenAI analysis → draft Q1/Q2/Q3 per user |
+| Survey | `src/survey/` | DM delivery of draft, Block Kit edit/submit flow |
+| Report | `src/report/` | Manager Digest + CEO Brief generation and posting |
+| Data | `data/messages/` | Collected weekly Slack messages per user (JSON) |
+| Data | `data/submissions/` | Approved survey submissions per user (JSON) |
+| Docs | `docs/` | All documentation including this file |
 
 ---
 
 ## Data Flow — Step by Step
 
-### Step 1 — Survey Ingestion (`src/survey/`)
+### Step 1 — Passive Collection (`src/collector/`) — Mon–Thu, continuous
 
-- **Input:** Raw survey responses (file, API, or manual input)
-- **Process:** Parse and normalize each employee's 3 answers
-- **Output:** Structured array of response objects
+- **Trigger:** Every message posted in a channel the bot is invited to
+- **Process:** Append message to that user's weekly log; if `@copilot` mentioned, flag as high priority
+- **Side effect:** React with ✅ on flagged messages only — no other noise
+- **Output:** `data/messages/<userId>.json`
 
 ```js
-// Expected shape out of survey/
+// data/messages/U063BKXMR3L.json
 {
-  employeeId: "eng-042",
+  userId: "U063BKXMR3L",
   week: "2026-W11",
-  progress: "Finished auth module, started on notifications",
-  blockers: "Waiting on design sign-off for the new onboarding screen",
-  supportNeeded: "Need a decision from product by Wednesday"
+  messages: [
+    { ts: "1741234567.000100", channel: "C01ABC", text: "Shipped the auth module", priority: false },
+    { ts: "1741298765.000200", channel: "C01ABC", text: "Blocked on design sign-off @copilot", priority: true }
+  ]
 }
 ```
 
-### Step 2 — NLP Analysis (`src/nlp/`)
+### Step 2 — Draft Generation (`src/nlp/`) — Friday 4:00 PM
 
-- **Input:** Structured survey data from Step 1
-- **Process:** Claude API classifies each blocker by type and severity, and determines who should receive it
-- **Output:** Enriched blocker objects ready for routing and summary
+- **Trigger:** node-cron at 16:00 every Friday
+- **Input:** `data/messages/<userId>.json` for each user
+- **Process:** Azure OpenAI GPT-4 analyses the week's messages and fills in all 3 survey questions
+- **Output:** Draft object per user
 
 ```js
-// Expected shape out of nlp/
+// Draft shape out of nlp/
 {
-  employeeId: "eng-042",
-  blocker: "Waiting on design sign-off for the new onboarding screen",
-  type: "dependency",        // dependency | resource | technical | process
-  severity: "medium",        // low | medium | high | critical
-  routeTo: "product-lead",   // slack handle or role
-  escalate: false
+  userId: "U063BKXMR3L",
+  week: "2026-W11",
+  draft: {
+    q1: "Shipped the auth module and started on the notifications feature.",
+    q2: "Waiting on design sign-off for the onboarding screen — flagged as a blocker.",
+    q3: "Need a decision from product by Wednesday to stay on track."
+  }
 }
 ```
 
-### Step 3 — Narrative Generation (`src/summary/`)
+### Step 3 — Draft Delivery & Submission (`src/survey/`) — Friday 4:00 PM
 
-- **Input:** All structured responses + enriched blockers
-- **Process:** Claude API generates a human-readable narrative per team and an executive-level brief
-- **Output:** Formatted text blocks ready for delivery
+- **Trigger:** Immediately after Step 2 completes
+- **Input:** Draft object per user
+- **Process:** Bot DMs each user a Block Kit message showing the pre-filled draft with Edit + Submit buttons
+- **Rule:** Bot never auto-submits — user must explicitly click Submit
+- **Output:** `data/submissions/<userId>.json` on approval
 
-**Per-team digest example:**
-> "This Week in Engineering — 8 of 10 engineers submitted updates. Auth work is complete.
-> One medium blocker flagged: design sign-off is pending for onboarding. Routed to @product-lead."
+```js
+// data/submissions/U063BKXMR3L.json
+{
+  userId: "U063BKXMR3L",
+  week: "2026-W11",
+  submittedAt: "2026-03-13T09:14:00Z",
+  q1: "Shipped the auth module and started on the notifications feature.",
+  q2: "Waiting on design sign-off for the onboarding screen.",
+  q3: "Need a decision from product by Wednesday."
+}
+```
 
-**Executive brief example:**
-> "Week 11 — 3 blockers across Engineering and Product. One high-severity item needs your attention.
-> Overall sentiment: on track for Q2 milestone."
+### Step 4 — Reminder (`src/survey/`) — Friday 5:00 PM
 
-### Step 4 — Delivery
+- **Trigger:** node-cron at 17:00 every Friday
+- **Process:** Check `data/submissions/` — if a user has no submission, send one DM reminder
+- **Rule:** One reminder only, no further nudges
 
-| Channel | Audience | Content | Timing |
-|---------|----------|---------|--------|
-| Slack (#team-digest) | All teams | Per-team narrative + blocker list | Friday EOD |
-| Email | CEO / Exec | High-level brief + escalations | Friday EOD |
-| Slack DM | Manager | Monday morning alert for unresolved blockers | Monday 8am |
-| Dashboard *(Phase 3)* | Leadership | Trend view across weeks | On-demand |
+### Step 5 — Report Generation (`src/report/`) — after submissions close
+
+- **Input:** All `data/submissions/*.json`
+- **Process:** Azure OpenAI generates two reports
+- **Output:** Posted directly to Slack channels
+
+| Report | Audience | Slack Channel |
+|--------|----------|---------------|
+| Manager Digest | Team leads | `#manager-digest` |
+| CEO Brief | Leadership | `#leadership` |
 
 ---
 
 ## Timing — When Each Step Happens
 
 ```
-FRIDAY
-  12:00 PM  Survey sent to all employees (external trigger)
-  05:00 PM  Survey responses collected (deadline)
-  05:05 PM  Pipeline triggered (manual in Phase 2, automated in Phase 3)
-              └─ Step 1: Survey ingestion         (~seconds)
-              └─ Step 2: NLP classification       (~seconds via Claude API)
-              └─ Step 3: Narrative generation     (~seconds via Claude API)
-              └─ Step 4: Slack digest delivered   (immediate)
-              └─ Step 4: Email brief sent         (immediate)
+MON–THU
+  All day   Collector listens passively to all invited channels
+            @copilot mention → ✅ react + flag message
 
-MONDAY
-  08:00 AM  Manager alert sent for any unresolved high/critical blockers (Phase 3)
+FRIDAY
+  04:00 PM  node-cron fires
+              └─ Step 2: Azure OpenAI drafts Q1/Q2/Q3 per user   (~seconds)
+              └─ Step 3: Bot DMs each user their draft via Block Kit
+
+  04:00–05:00 PM  Submission window — users review, edit, and submit
+
+  05:00 PM  node-cron fires
+              └─ Step 4: Reminder DM sent to anyone who hasn't submitted
+
+  05:00 PM+  Step 5: Reports generated and posted to Slack channels
 ```
 
 ---
 
-## Phase Rollout
+## POC Scope
 
-### Phase 1 — Scaffold (W1–2) — COMPLETE
-- [x] Repo initialized
-- [x] Folder structure created
-- [x] `src/index.js` entry point running locally
-- [x] `package.json` with Anthropic SDK
+| Item | Detail |
+|------|--------|
+| Users | Single user — Oanh Dinh (`U063BKXMR3L`) |
+| Storage | JSON files only — no database |
+| Deployment | Local machine only |
+| Slack connection | Real bot token via Socket Mode |
+| AI | Azure OpenAI GPT-4 (endpoint + key in `.env.local`) |
 
-### Phase 2 — Core Pipeline (W3–4)
-- [ ] `src/survey/` — connect Friday survey data source
-- [ ] `src/nlp/` — blocker detection and classification
-- [ ] `src/summary/` — narrative generation via Claude API
-- [ ] Slack digest sender
-- [ ] Auto-route blockers to correct owner
-
-### Phase 3 — Intelligence Layer (W5–6)
-- [ ] Severity-based escalation routing
-- [ ] Monday manager alerts for unresolved blockers
-- [ ] Trend and pattern detection across weeks
-- [ ] Executive dashboard view
-- [ ] End-to-end QA and CEO full demo
-
----
-
-## CEO Demo Checkpoints
-
-| Demo | Week | What to Show |
-|------|------|-------------|
-| Demo 1 | W2 | Local app running, project structure, entry point live |
-| Demo 2 | W4 | AI reading survey data + Slack digest delivered live |
-| Demo 3 | W6 | Full end-to-end system + trend report + next phase plan |
-
----
-
-## Survey Questions (Source Data)
-
-Every Friday, employees answer 3 questions:
-
-1. **Progress** — What did you accomplish this week?
-2. **Blockers** — What is blocking you right now?
-3. **Support needed** — What do you need from leadership or teammates?
+**Out of scope for POC:** multi-user rollout, cloud deployment, dashboard/analytics
 
 ---
 
@@ -189,8 +195,10 @@ Every Friday, employees answer 3 questions:
 
 | Topic | Decision |
 |-------|----------|
-| Deployment | Local-first; no cloud infrastructure until Phase 3+ |
-| AI model | Claude API (Anthropic) for both NLP and narrative generation |
-| Privacy | AI reads all survey responses — confirm boundaries with CEO before Phase 2 |
-| Trigger | Manual pipeline trigger in Phase 2; automated scheduler in Phase 3 |
-| Delivery | Slack for teams, Email for executives |
+| Collection | Passive only — bot reads channel messages, no polling or scraping |
+| Submission | User-controlled — bot never auto-submits on behalf of anyone |
+| Noise | Bot only reacts with ✅ in channels — zero text noise |
+| Storage | JSON files for POC; swap to a database for production |
+| AI provider | Azure OpenAI GPT-4 — credentials in `.env.local` |
+| Scheduler | node-cron for Friday 4PM draft trigger and 5PM reminder |
+| Privacy | Bot reads all channel messages it is invited to — confirm scope with CEO |
