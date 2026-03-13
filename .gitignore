@@ -23,6 +23,7 @@ pids/
 # Build output
 dist/
 build/
+coverage/
 
 # OS
 .DS_Store
