@@ -25,6 +25,10 @@ dist/
 build/
 coverage/
 
+# Collected data — keep folder structure, ignore real files
+data/messages/*.json
+data/submissions/*.json
+
 # OS
 .DS_Store
 Thumbs.db
