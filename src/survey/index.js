@@ -54,11 +54,11 @@ async function sendDraft(app, userId, draft) {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*1. Progress this week*\n' + draft.progress },
+        text: { type: 'mrkdwn', text: '*1. Progress*\n' + draft.progress },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*2. Blockers this week*\n' + draft.blocker },
+        text: { type: 'mrkdwn', text: '*2. Blockers*\n' + draft.blocker },
       },
       {
         type: 'section',
@@ -93,7 +93,7 @@ async function sendDraft(app, userId, draft) {
 function confirmedBlocks() {
   return [{
     type: 'section',
-    text: { type: 'mrkdwn', text: ':white_check_mark: Your Productivity Copilot weekly has been submitted. See you next Friday 😊' },
+    text: { type: 'mrkdwn', text: '✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊' },
   }];
 }
 
@@ -112,7 +112,7 @@ function registerSurveyActions(app) {
     await client.chat.update({
       channel: body.container.channel_id,
       ts:      body.container.message_ts,
-      text:    'Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
+      text:    '✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks:  confirmedBlocks(),
     });
     console.log(`[survey] ${userId} submitted as-is`);
@@ -192,7 +192,7 @@ function registerSurveyActions(app) {
     await client.chat.update({
       channel,
       ts,
-      text:   'Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
+      text:   '✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks: confirmedBlocks(),
     });
     console.log(`[survey] ${userId} submitted via modal`);

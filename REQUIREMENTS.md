@@ -49,7 +49,7 @@ and submits.
   · @copilot mentioned messages treated as high-priority signals
 - Returns structured JSON draft per user: { progress, blocker, support }
 - Bot immediately DMs each active user their personalised draft via Slack Block Kit
-- Draft shows 3 clearly labelled sections (1. Progress this week, 2. Blockers this week, 3. Support needed)
+- Draft shows 3 clearly labelled sections (1. Progress, 2. Blockers, 3. Support needed)
 - Bottom of message has Edit & Submit button (opens modal) and Submit As-Is button
 - Bot never submits on behalf of the user
 - DM title: "Productivity Copilot Weekly Draft"
@@ -58,7 +58,7 @@ and submits.
 - User reads the draft in their DM
 - Optionally edits any answer by clicking Edit and typing a correction
 - Clicks Submit to finalise — saved to data/submissions/[userID]-[date].json
-- Bot confirms submission with message: "Your Productivity Copilot weekly has been submitted. See you next Friday 😊"
+- Bot confirms submission with message: "✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊"
 
 ## Tech Stack
 - Runtime: Node.js
