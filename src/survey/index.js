@@ -9,11 +9,15 @@ const SUBMISSIONS_DIR = path.join(__dirname, '../../data/submissions');
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
 function hasSubmitted(userId) {
-  const filePath = path.join(SUBMISSIONS_DIR, `${userId}.json`);
-  if (!fs.existsSync(filePath)) return false;
+  if (!fs.existsSync(SUBMISSIONS_DIR)) return false;
   const week = getWeekString();
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    .some(entry => entry.week === week);
+  return fs.readdirSync(SUBMISSIONS_DIR)
+    .filter(f => f.startsWith(`${userId}-`) && f.endsWith('.json'))
+    .some(f => {
+      const parsed = JSON.parse(fs.readFileSync(path.join(SUBMISSIONS_DIR, f), 'utf8'));
+      const entries = Array.isArray(parsed) ? parsed : [parsed];
+      return entries.some(entry => entry.week === week);
+    });
 }
 
 function saveSubmission(userId, answers) {
@@ -46,19 +50,19 @@ async function sendDraft(app, userId, draft) {
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: 'Your Weekly Survey Draft', emoji: true },
+        text: { type: 'plain_text', text: 'Productivity Copilot Weekly Draft', emoji: true },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Progress this week*\n' + draft.progress },
+        text: { type: 'mrkdwn', text: '*1. Progress this week*\n' + draft.progress },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Blockers*\n' + draft.blocker },
+        text: { type: 'mrkdwn', text: '*2. Blockers this week*\n' + draft.blocker },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Support needed*\n' + draft.support },
+        text: { type: 'mrkdwn', text: '*3. Support needed*\n' + draft.support },
       },
       { type: 'divider' },
       {
@@ -89,7 +93,7 @@ async function sendDraft(app, userId, draft) {
 function confirmedBlocks() {
   return [{
     type: 'section',
-    text: { type: 'mrkdwn', text: ':white_check_mark: *Survey submitted — thank you!*' },
+    text: { type: 'mrkdwn', text: ':white_check_mark: Your Productivity Copilot weekly has been submitted. See you next Friday 😊' },
   }];
 }
 
@@ -108,7 +112,7 @@ function registerSurveyActions(app) {
     await client.chat.update({
       channel: body.container.channel_id,
       ts:      body.container.message_ts,
-      text:    'Survey submitted — thank you!',
+      text:    'Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks:  confirmedBlocks(),
     });
     console.log(`[survey] ${userId} submitted as-is`);
@@ -188,7 +192,7 @@ function registerSurveyActions(app) {
     await client.chat.update({
       channel,
       ts,
-      text:   'Survey submitted — thank you!',
+      text:   'Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks: confirmedBlocks(),
     });
     console.log(`[survey] ${userId} submitted via modal`);

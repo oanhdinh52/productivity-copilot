@@ -17,6 +17,16 @@ function getWeekString() {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+function getNextWeekString() {
+  const now  = new Date();
+  const next = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 7));
+  const day  = next.getUTCDay() || 7;
+  next.setUTCDate(next.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(next.getUTCFullYear(), 0, 1));
+  const week      = Math.ceil((((next - yearStart) / 86400000) + 1) / 7);
+  return `${next.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
 function loadMessages(userId) {
   const file = path.join(MESSAGES_DIR, `${userId}.json`);
   if (!fs.existsSync(file)) return { userId, week: getWeekString(), messages: [] };
@@ -46,12 +56,19 @@ function registerCollector(app, botUserId) {
     const text    = message.text || '';
     const priority = botUserId ? text.includes(`<@${botUserId}>`) : false;
 
-    const data        = loadMessages(userId);
-    const currentWeek = getWeekString();
+    const now            = new Date();
+    const isFridayCutoff = now.getDay() === 5 && now.getHours() >= 12;
+    const targetWeek     = isFridayCutoff ? getNextWeekString() : getWeekString();
 
-    // Reset on new week
-    if (data.week !== currentWeek) {
-      data.week     = currentWeek;
+    if (isFridayCutoff) {
+      console.log(`[collector] Friday cutoff reached — message from ${userId} stored in next week ${targetWeek}`);
+    }
+
+    const data = loadMessages(userId);
+
+    // Reset when the stored week doesn't match the target week
+    if (data.week !== targetWeek) {
+      data.week     = targetWeek;
       data.messages = [];
     }
 

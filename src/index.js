@@ -18,7 +18,7 @@ const app = new App({
 });
 
 async function runFridayDrafts() {
-  console.log('[cron] Friday 4PM — generating drafts for all users...');
+  console.log('[cron] Friday 12PM — generating drafts for all users...');
   const userIds = getAllMessageUserIds();
 
   for (const userId of userIds) {
@@ -46,10 +46,10 @@ async function runFridayClose() {
   registerCollector(app, botUserId);
   registerSurveyActions(app);
 
-  // Friday 4:00 PM — generate and send drafts
-  cron.schedule('0 16 * * 5', runFridayDrafts, { timezone: process.env.TZ || 'Asia/Ho_Chi_Minh' });
+  // Friday 12:00 PM — generate and send drafts
+  cron.schedule('0 12 * * 5', runFridayDrafts, { timezone: process.env.TZ || 'Asia/Ho_Chi_Minh' });
 
-  // Friday 5:00 PM — reminders + reports
+  // Friday 5:00 PM — generate reports
   cron.schedule('0 17 * * 5', runFridayClose, { timezone: process.env.TZ || 'Asia/Ho_Chi_Minh' });
 
   await app.start();
