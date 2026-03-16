@@ -62,7 +62,7 @@ and submits.
 
 ## Tech Stack
 - Runtime: Node.js
-- AI: Azure OpenAI GPT-4 (credentials in .env.local)
+- AI: Azure OpenAI GPT-4o (credentials in .env.local)
 - Bot Framework: @slack/bolt (Slack Events API + Block Kit)
 - Scheduler: node-cron (Friday 4PM trigger)
 - Storage: JSON files locally (POC only)
