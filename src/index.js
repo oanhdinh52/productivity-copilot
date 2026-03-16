@@ -8,7 +8,7 @@ const cron       = require('node-cron');
 
 const { registerCollector, getAllMessageUserIds } = require('./collector');
 const { generateDraft }                           = require('./nlp');
-const { sendDraft, sendReminders, registerSurveyActions } = require('./survey');
+const { sendDraft, registerSurveyActions } = require('./survey');
 const { generateAndPostReports }                  = require('./report');
 
 const app = new App({
@@ -32,8 +32,7 @@ async function runFridayDrafts() {
 }
 
 async function runFridayClose() {
-  console.log('[cron] Friday 5PM — sending reminders and generating reports...');
-  try { await sendReminders(app); }         catch (err) { console.error('[cron] Reminder error:', err.message); }
+  console.log('[cron] Friday 5PM — generating reports...');
   try { await generateAndPostReports(app); } catch (err) { console.error('[cron] Report error:', err.message); }
 }
 

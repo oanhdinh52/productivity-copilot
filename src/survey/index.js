@@ -9,26 +9,32 @@ const SUBMISSIONS_DIR = path.join(__dirname, '../../data/submissions');
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
 function hasSubmitted(userId) {
-  const file = path.join(SUBMISSIONS_DIR, `${userId}.json`);
-  if (!fs.existsSync(file)) return false;
-  return JSON.parse(fs.readFileSync(file, 'utf8')).week === getWeekString();
+  const filePath = path.join(SUBMISSIONS_DIR, `${userId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  const week = getWeekString();
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    .some(entry => entry.week === week);
 }
 
 function saveSubmission(userId, answers) {
   fs.mkdirSync(SUBMISSIONS_DIR, { recursive: true });
-  const submission = {
+  const now   = new Date();
+  const entry = {
     userId,
     week:        getWeekString(),
-    submittedAt: new Date().toISOString(),
-    q1:          answers.q1,
-    q2:          answers.q2,
-    q3:          answers.q3,
+    submittedAt: now.toISOString(),
+    progress:    answers.progress,
+    blocker:     answers.blocker,
+    support:     answers.support,
   };
-  fs.writeFileSync(
-    path.join(SUBMISSIONS_DIR, `${userId}.json`),
-    JSON.stringify(submission, null, 2),
-  );
-  return submission;
+  const filePath = path.join(SUBMISSIONS_DIR, `${userId}-${new Date().toISOString().slice(0, 10)}.json`);
+  const parsed  = fs.existsSync(filePath)
+    ? JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    : [];
+  const entries = Array.isArray(parsed) ? parsed : [parsed];
+  entries.push(entry);
+  fs.writeFileSync(filePath, JSON.stringify(entries, null, 2));
+  return entry;
 }
 
 // ── Draft DM ──────────────────────────────────────────────────────────────────
@@ -44,15 +50,15 @@ async function sendDraft(app, userId, draft) {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Q1 — Progress this week*\n' + draft.q1 },
+        text: { type: 'mrkdwn', text: '*Progress this week*\n' + draft.progress },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Q2 — Blockers*\n' + draft.q2 },
+        text: { type: 'mrkdwn', text: '*Blockers*\n' + draft.blocker },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: '*Q3 — Support needed*\n' + draft.q3 },
+        text: { type: 'mrkdwn', text: '*Support needed*\n' + draft.support },
       },
       { type: 'divider' },
       {
@@ -78,27 +84,6 @@ async function sendDraft(app, userId, draft) {
   console.log(`[survey] Draft DM sent to ${userId}`);
 }
 
-// ── 5 PM reminder ─────────────────────────────────────────────────────────────
-
-async function sendReminders(app) {
-  const messagesDir = path.join(__dirname, '../../data/messages');
-  if (!fs.existsSync(messagesDir)) return;
-
-  const userIds = fs.readdirSync(messagesDir)
-    .filter(f => f.endsWith('.json'))
-    .map(f => f.replace('.json', ''));
-
-  for (const userId of userIds) {
-    if (!hasSubmitted(userId)) {
-      await app.client.chat.postMessage({
-        channel: userId,
-        text:    ':bell: Friendly reminder — your weekly survey draft is waiting. Please submit before EOD today.',
-      });
-      console.log(`[survey] Reminder sent to ${userId}`);
-    }
-  }
-}
-
 // ── Block Kit action handlers ─────────────────────────────────────────────────
 
 function confirmedBlocks() {
@@ -114,7 +99,11 @@ function registerSurveyActions(app) {
     await ack();
     const userId = body.user.id;
     const draft  = JSON.parse(body.actions[0].value);
-    saveSubmission(userId, draft);
+    saveSubmission(userId, {
+      progress: draft.progress,
+      blocker:  draft.blocker,
+      support:  draft.support,
+    });
 
     await client.chat.update({
       channel: body.container.channel_id,
@@ -145,35 +134,35 @@ function registerSurveyActions(app) {
         blocks: [
           {
             type:     'input',
-            block_id: 'q1_block',
-            label:    { type: 'plain_text', text: 'Q1 — What progress did you make this week?' },
+            block_id: 'progress_block',
+            label:    { type: 'plain_text', text: 'What progress did you make this week?' },
             element: {
               type:          'plain_text_input',
-              action_id:     'q1',
+              action_id:     'progress',
               multiline:     true,
-              initial_value: draft.q1,
+              initial_value: draft.progress,
             },
           },
           {
             type:     'input',
-            block_id: 'q2_block',
-            label:    { type: 'plain_text', text: 'Q2 — Anything blocking you this week?' },
+            block_id: 'blocker_block',
+            label:    { type: 'plain_text', text: 'Anything blocking you this week?' },
             element: {
               type:          'plain_text_input',
-              action_id:     'q2',
+              action_id:     'blocker',
               multiline:     true,
-              initial_value: draft.q2,
+              initial_value: draft.blocker,
             },
           },
           {
             type:     'input',
-            block_id: 'q3_block',
-            label:    { type: 'plain_text', text: 'Q3 — What support do you need?' },
+            block_id: 'support_block',
+            label:    { type: 'plain_text', text: 'What support do you need?' },
             element: {
               type:          'plain_text_input',
-              action_id:     'q3',
+              action_id:     'support',
               multiline:     true,
-              initial_value: draft.q3,
+              initial_value: draft.support,
             },
           },
         ],
@@ -188,9 +177,9 @@ function registerSurveyActions(app) {
     const values = view.state.values;
 
     const answers = {
-      q1: values.q1_block.q1.value,
-      q2: values.q2_block.q2.value,
-      q3: values.q3_block.q3.value,
+      progress: values.progress_block.progress.value,
+      blocker:  values.blocker_block.blocker.value,
+      support:  values.support_block.support.value,
     };
 
     saveSubmission(userId, answers);
@@ -208,4 +197,4 @@ function registerSurveyActions(app) {
   console.log('[survey] Block Kit action handlers registered');
 }
 
-module.exports = { sendDraft, sendReminders, registerSurveyActions, hasSubmitted, saveSubmission };
+module.exports = { sendDraft, registerSurveyActions, hasSubmitted, saveSubmission };

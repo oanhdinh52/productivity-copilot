@@ -40,7 +40,7 @@ Survey questions:
 3. Anything you need to be more productive or support you better?
 
 Return format:
-{"q1": "...", "q2": "...", "q3": "..."}`;
+{"progress": "...", "blocker": "...", "support": "..."}`;
 
   const response = await client.chat.completions.create({
     model:           process.env.AZURE_OPENAI_DEPLOYMENT_DEFAULT,

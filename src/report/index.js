@@ -21,16 +21,16 @@ function loadAllSubmissions() {
   const week = getWeekString();
   return fs.readdirSync(SUBMISSIONS_DIR)
     .filter(f => f.endsWith('.json'))
-    .map(f => JSON.parse(fs.readFileSync(path.join(SUBMISSIONS_DIR, f), 'utf8')))
+    .flatMap(f => JSON.parse(fs.readFileSync(path.join(SUBMISSIONS_DIR, f), 'utf8')))
     .filter(s => s.week === week);
 }
 
 function buildSurveyText(submissions) {
   return submissions.map((s, i) => [
     `Employee ${i + 1}:`,
-    `  Progress:       ${s.q1}`,
-    `  Blockers:       ${s.q2}`,
-    `  Support needed: ${s.q3}`,
+    `  Progress:       ${s.progress}`,
+    `  Blockers:       ${s.blocker}`,
+    `  Support needed: ${s.support}`,
   ].join('\n')).join('\n\n');
 }
 
@@ -84,29 +84,17 @@ ${surveyText}`,
 
   const ceoBrief = ceoRes.choices[0].message.content;
 
-  // ── Post to Slack ─────────────────────────────────────────────────────────
-  const managerChannel    = process.env.SLACK_MANAGER_CHANNEL;
-  const leadershipChannel = process.env.SLACK_LEADERSHIP_CHANNEL;
+  // ── Print to terminal (POC) ───────────────────────────────────────────────
+  console.log('\n' + '─'.repeat(60));
+  console.log(`MANAGER DIGEST — ${week}`);
+  console.log('─'.repeat(60));
+  console.log(managerDigest);
 
-  if (managerChannel) {
-    await app.client.chat.postMessage({
-      channel: managerChannel,
-      text:    `*Manager Digest — ${week}*\n\n${managerDigest}`,
-    });
-    console.log('[report] Manager Digest posted to', managerChannel);
-  } else {
-    console.warn('[report] SLACK_MANAGER_CHANNEL not set — skipping Manager Digest');
-  }
-
-  if (leadershipChannel) {
-    await app.client.chat.postMessage({
-      channel: leadershipChannel,
-      text:    `*CEO Brief — ${week}*\n\n${ceoBrief}`,
-    });
-    console.log('[report] CEO Brief posted to', leadershipChannel);
-  } else {
-    console.warn('[report] SLACK_LEADERSHIP_CHANNEL not set — skipping CEO Brief');
-  }
+  console.log('\n' + '─'.repeat(60));
+  console.log(`CEO BRIEF — ${week}`);
+  console.log('─'.repeat(60));
+  console.log(ceoBrief);
+  console.log('─'.repeat(60) + '\n');
 }
 
 module.exports = { generateAndPostReports };
