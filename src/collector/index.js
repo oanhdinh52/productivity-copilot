@@ -81,7 +81,7 @@ function registerCollector(app, botUserId) {
 
     saveMessages(userId, data);
 
-    // ✅ react only on @copilot mentions — no other channel noise
+    // ✅ react only on @prody mentions — no other channel noise
     if (priority) {
       try {
         await client.reactions.add({

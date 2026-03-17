@@ -20,7 +20,7 @@ MON–FRI until 12PM (passive, continuous)
 │  src/collector/                                                      │
 │  - Listens to all channels the bot is invited to                     │
 │  - Stores each user's messages to data/messages/<userId>.json        │
-│  - @copilot mention → reacts ✅, flags message as priority: true     │
+│  - @prody mention → reacts ✅, flags message as priority: true       │
 │  - Stops collecting for current week at Friday 12PM                  │
 │  - Messages after Friday 12PM stored in following week's file        │
 └──────────────────────────────────────────────────────────────────────┘
@@ -64,7 +64,7 @@ FRIDAY 5:00 PM (node-cron trigger)
 | Module | Path | Responsibility |
 |--------|------|----------------|
 | Entry point | `src/index.js` | Bootstraps app, registers cron jobs, starts Slack Bolt |
-| Collector | `src/collector/` | Passive message listener + @copilot mention handler + Friday 12PM cutoff |
+| Collector | `src/collector/` | Passive message listener + @prody mention handler + Friday 12PM cutoff |
 | NLP | `src/nlp/` | Azure OpenAI analysis → draft progress/blocker/support per user |
 | Survey | `src/survey/` | DM delivery of draft, Block Kit edit/submit flow |
 | Report | `src/report/` | Manager Digest + CEO Brief generation |
@@ -79,7 +79,7 @@ FRIDAY 5:00 PM (node-cron trigger)
 ### Step 1 — Passive Collection (`src/collector/`) — Mon–Fri until 12PM, continuous
 
 - **Trigger:** Every message posted in a channel the bot is invited to
-- **Process:** Append message to that user's weekly log; if `@copilot` mentioned, flag as `priority: true`
+- **Process:** Append message to that user's weekly log; if `@prody` mentioned, flag as `priority: true`
 - **Cutoff:** On Friday at 12PM the cron fires — messages arriving after 12PM are stored under the following week's key
 - **Side effect:** React with ✅ on flagged messages only — no other noise
 - **Output:** `data/messages/<userId>.json`
@@ -91,7 +91,7 @@ FRIDAY 5:00 PM (node-cron trigger)
   week: "2026-W11",
   messages: [
     { ts: "1741234567.000100", channel: "C01ABC", text: "Shipped the auth module", priority: false },
-    { ts: "1741298765.000200", channel: "C01ABC", text: "Blocked on design sign-off @copilot", priority: true }
+    { ts: "1741298765.000200", channel: "C01ABC", text: "Blocked on design sign-off @prody", priority: true }
   ]
 }
 ```
@@ -159,7 +159,7 @@ FRIDAY 5:00 PM (node-cron trigger)
 ```
 MON–FRI
   All day   Collector listens passively to all invited channels
-            @copilot mention → ✅ react + flag message as priority
+            @prody mention → ✅ react + flag message as priority
 
 FRIDAY
   12:00 PM  node-cron fires

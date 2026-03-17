@@ -36,7 +36,7 @@ and submits.
 - Messages received after Friday 12PM are stored in the following week's file
 
 ### Any Time: On-Demand Flagging
-- Any user can mention @copilot in any message or thread
+- Any user can mention @prody in any message or thread
 - Bot reacts with ✅ only — no text response, no channel noise
 - That message is stored with priority: true — given higher weight in the AI draft generation
 
@@ -46,7 +46,7 @@ and submits.
   · Identify progress signals → maps to progress
   · Identify blocker signals (stuck, waiting, blocked, pending) → maps to blocker
   · Identify support/resource requests → maps to support
-  · @copilot mentioned messages treated as high-priority signals
+  · @prody mentioned messages treated as high-priority signals
 - Returns structured JSON draft per user: { progress, blocker, support }
 - Bot immediately DMs each active user their personalised draft via Slack Block Kit
 - Draft shows 3 clearly labelled sections (1. Progress, 2. Blockers, 3. Support needed)
@@ -70,7 +70,7 @@ and submits.
 
 ## Project Structure
 src/
-collector/   → passive message collection + @copilot mention handler
+collector/   → passive message collection + @prody mention handler
 nlp/         → Azure OpenAI analysis + draft generation per user
 survey/      → draft DM delivery + edit/submit flow (Block Kit)
 report/      → submission reader + summary output
