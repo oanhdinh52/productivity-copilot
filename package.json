@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "draft": "node scripts/draft.js"
+    "draft": "node scripts/draft.js",
+    "prody:start": "pm2 start ecosystem.config.js",
+    "prody:stop": "pm2 stop prody",
+    "prody:restart": "pm2 restart prody",
+    "prody:status": "pm2 status",
+    "prody:logs": "pm2 logs prody"
   },
   "keywords": [
     "ai",

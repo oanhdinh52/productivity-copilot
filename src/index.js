@@ -17,8 +17,15 @@ const app = new App({
   socketMode: true,
 });
 
-async function runFridayDrafts() {
-  console.log('[cron] Friday 12PM — generating drafts for all users...');
+const DAY_NUMBER = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5 };
+
+function buildCron(day, hour, minute) {
+  const dayNum = DAY_NUMBER[day.toLowerCase()];
+  return `${minute} ${hour} * * ${dayNum}`;
+}
+
+async function runDrafts() {
+  console.log('[cron] Draft time — generating drafts for all users...');
   const userIds = getAllMessageUserIds();
 
   for (const userId of userIds) {
@@ -31,8 +38,8 @@ async function runFridayDrafts() {
   }
 }
 
-async function runFridayClose() {
-  console.log('[cron] Friday 5PM — generating reports...');
+async function runReport() {
+  console.log('[cron] Report time — generating reports...');
   try { await generateAndPostReports(app); } catch (err) { console.error('[cron] Report error:', err.message); }
 }
 
@@ -46,11 +53,26 @@ async function runFridayClose() {
   registerCollector(app, botUserId);
   registerSurveyActions(app);
 
-  // Friday 12:00 PM — generate and send drafts
-  cron.schedule('0 12 * * 5', runFridayDrafts, { timezone: process.env.TZ || 'Asia/Ho_Chi_Minh' });
+  const tz = process.env.TZ || 'Asia/Ho_Chi_Minh';
 
-  // Friday 5:00 PM — generate reports
-  cron.schedule('0 17 * * 5', runFridayClose, { timezone: process.env.TZ || 'Asia/Ho_Chi_Minh' });
+  const cutoffDay    = process.env.COLLECTION_CUTOFF_DAY;
+  const cutoffHour   = process.env.COLLECTION_CUTOFF_HOUR;
+  const cutoffMinute = process.env.COLLECTION_CUTOFF_MINUTE;
+
+  const draftDay    = process.env.DRAFT_DAY;
+  const draftHour   = process.env.DRAFT_HOUR;
+  const draftMinute = process.env.DRAFT_MINUTE;
+
+  const reportDay    = process.env.REPORT_DAY;
+  const reportHour   = process.env.REPORT_HOUR;
+  const reportMinute = process.env.REPORT_MINUTE;
+
+  console.log(`[scheduler] Cutoff: ${cutoffDay} at ${cutoffHour}:${String(cutoffMinute).padStart(2, '0')}`);
+  console.log(`[scheduler] Draft:  ${draftDay} at ${draftHour}:${String(draftMinute).padStart(2, '0')}`);
+  console.log(`[scheduler] Report: ${reportDay} at ${reportHour}:${String(reportMinute).padStart(2, '0')}`);
+
+  cron.schedule(buildCron(draftDay, draftHour, draftMinute), runDrafts, { timezone: tz });
+  cron.schedule(buildCron(reportDay, reportHour, reportMinute), runReport, { timezone: tz });
 
   await app.start();
   console.log('Productivity Copilot is running in Socket Mode');

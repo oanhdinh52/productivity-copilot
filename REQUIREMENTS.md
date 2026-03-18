@@ -54,6 +54,30 @@ and submits.
 - Bot never submits on behalf of the user
 - DM title: "Productivity Copilot Weekly Draft"
 
+### Scheduler Configuration
+
+All scheduled jobs are configurable via .env.local.
+To change: update .env.local values and run npm run prody:restart.
+No code changes needed.
+
+| Variable | Description | Current value |
+|---|---|---|
+| COLLECTION_CUTOFF_DAY | Day collection stops | wednesday |
+| COLLECTION_CUTOFF_HOUR | Hour (24h) | 10 |
+| COLLECTION_CUTOFF_MINUTE | Minute | 52 |
+| DRAFT_DAY | Day draft is generated | wednesday |
+| DRAFT_HOUR | Hour (24h) | 11 |
+| DRAFT_MINUTE | Minute | 0 |
+| REPORT_DAY | Day report runs | wednesday |
+| REPORT_HOUR | Hour (24h) | 11 |
+| REPORT_MINUTE | Minute | 30 |
+
+> ⚠️ These are current test values.
+> For production:
+> - Collection cutoff: friday at 12:00
+> - Draft generation: friday at 12:00
+> - Report generation: tuesday (following week) at 09:00
+
 ### User Action: Review and Submit
 - User reads the draft in their DM
 - Optionally edits any answer by clicking Edit and typing a correction
