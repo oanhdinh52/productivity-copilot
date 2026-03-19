@@ -2,6 +2,13 @@
 
 const { AzureOpenAI }       = require('openai');
 const { getWeekString, loadMessages } = require('../collector');
+const log = require('../logger');
+
+// Strip control chars and truncate to guard against prompt injection
+function sanitiseInput(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').slice(0, 2000);
+}
 
 function buildClient() {
   return new AzureOpenAI({
@@ -16,14 +23,14 @@ async function generateDraft(userId) {
   const data = loadMessages(userId);
 
   if (!data.messages.length) {
-    console.log(`[nlp] No messages for ${userId} — skipping`);
+    log.info('nlp.skipped', { user_id: userId, action: 'generate_draft', outcome: 'no_messages' });
     return null;
   }
 
   const client = buildClient();
 
   const messageLog = data.messages
-    .map(m => `${m.priority ? '[FLAGGED] ' : ''}${m.text}`)
+    .map(m => `${m.priority ? '[FLAGGED] ' : ''}${sanitiseInput(m.text)}`)
     .join('\n');
 
   const prompt = `You are a helpful assistant summarising an employee's Slack activity into a weekly survey.

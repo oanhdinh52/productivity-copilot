@@ -168,31 +168,27 @@ the output format rules above.
 3. This Week
    Three parts written as one cohesive narrative by Azure OpenAI.
 
-AI mindset:
-- You have read every submission in full
-- You have formed a clear opinion — not a summary
-- You speak with authority to someone who trusts your judgment
-- You surface only what matters — everything else is noise
-- You connect patterns the lead might not see themselves
-- You use <@userId> format for every person mentioned —
-  never plain text names anywhere in the report
+   AI mindset:
+    - You have read every submission in full
+    - You have formed a clear opinion — not a summary
+    - You surface only what matters — everything else is noise
+    - You connect patterns the lead might not see themselves
+    - Use <@userId> for every person — never plain text names
 
    Opening:
-    - Combines delivery signal and risk signal
-    - Written with the precision of someone who has read
-      every submission and formed a clear opinion
+    - State the single most important thing about this week
+    - Name the specific team, person, or system involved
+    - A reader who knows this team should recognise it instantly
+    - Generic observations that apply to any team are not acceptable
 
    Highlights:
-    - Select the wins that actually moved the team forward
-    - Write outcomes not activities — the why, not the what
-    - AI decides what is meaningful — not everything qualifies
-    - Attribution optional — only tag a person when it adds
-        meaningful context, not for every win
+    - Select only wins that moved the team forward
+    - Write outcomes — the impact, not the activity
+    - AI decides what qualifies — not everything does
 
    Trend:
-    - Tells the lead whether the team is improving, stable,
-      or declining — and why it matters for next week
-    - Omit entirely if no prior week data — never fabricate
+    - Draw a conclusion from comparing this week to prior week
+    - State what it means for the lead's focus next week
 
 4. Needs Your Attention
     - Written as 1 to 3 short paragraphs by Azure OpenAI

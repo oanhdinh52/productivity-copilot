@@ -2,6 +2,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const log  = require('../logger');
 
 const MESSAGES_DIR = path.join(__dirname, '../../data/messages');
 
@@ -61,7 +62,7 @@ function registerCollector(app, botUserId) {
     const targetWeek     = isFridayCutoff ? getNextWeekString() : getWeekString();
 
     if (isFridayCutoff) {
-      console.log(`[collector] Friday cutoff reached — message from ${userId} stored in next week ${targetWeek}`);
+      log.info('collector.cutoff_reached', { user_id: userId, action: 'store_message', outcome: 'next_week_bucket' });
     }
 
     const data = loadMessages(userId);
@@ -92,13 +93,13 @@ function registerCollector(app, botUserId) {
       } catch (err) {
         // Reaction may already exist — safe to ignore
         if (err.data?.error !== 'already_reacted') {
-          console.error('[collector] reaction error:', err.message);
+          log.error('collector.reaction_failed', { user_id: userId, action: 'add_reaction', outcome: 'error' });
         }
       }
     }
   });
 
-  console.log('[collector] Passive message collector registered');
+  log.info('collector.registered', { action: 'register', outcome: 'success' });
 }
 
 module.exports = { registerCollector, getWeekString, loadMessages, getAllMessageUserIds };

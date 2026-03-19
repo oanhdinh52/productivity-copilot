@@ -4,11 +4,18 @@ const { AzureOpenAI } = require('openai');
 const fs              = require('fs');
 const path            = require('path');
 const { getWeekString } = require('../collector');
+const log = require('../logger');
 
 const SUBMISSIONS_DIR = path.join(__dirname, '../../data/submissions');
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Strip control chars and truncate to guard against prompt injection
+function sanitiseInput(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').slice(0, 2000);
+}
 
 function buildClient() {
   return new AzureOpenAI({
@@ -79,9 +86,9 @@ async function resolveDisplayNames(app, memberIds) {
 function buildSurveyText(submissions, displayNameById) {
   return submissions.map(s => [
     `Member (userId: ${s.userId}, displayName: ${displayNameById[s.userId] || s.userId}):`,
-    `  Progress:       ${s.progress}`,
-    `  Blockers:       ${s.blocker}`,
-    `  Support needed: ${s.support}`,
+    `  Progress:       ${sanitiseInput(s.progress)}`,
+    `  Blockers:       ${sanitiseInput(s.blocker)}`,
+    `  Support needed: ${sanitiseInput(s.support)}`,
   ].join('\n')).join('\n\n');
 }
 
@@ -91,7 +98,7 @@ async function generateAndSendLeadReport(app) {
     .split(',').map(s => s.trim()).filter(Boolean);
 
   if (!teamLeadId) {
-    console.log('[report] TEAM_LEAD_ID not set — skipping report');
+    log.warn('report.skipped', { action: 'generate_report', outcome: 'no_team_lead_id' });
     return;
   }
 
@@ -102,7 +109,7 @@ async function generateAndSendLeadReport(app) {
   const priorSubmissions = loadSubmissionsForWeek(memberIds, priorWeek);
 
   if (!submissions.length) {
-    console.log('[report] No team submissions this week — skipping report');
+    log.info('report.skipped', { action: 'generate_report', outcome: 'no_submissions' });
     return;
   }
 
@@ -117,9 +124,20 @@ async function generateAndSendLeadReport(app) {
   // Build prior week context for trend
   const hasPriorData = priorSubmissions.length > 0;
   const priorContext = hasPriorData
-    ? `Prior week (${priorWeek}) had ${priorSubmissions.length} submission(s) from ${new Set(priorSubmissions.map(s => s.userId)).size} member(s).
-Prior week blocker summary:
-${priorSubmissions.map(s => `  ${displayNameById[s.userId] || s.userId}: blockers: ${s.blocker}`).join('\n')}`
+    ? (() => {
+        const priorSubmissionRate = `${priorSubmissions.length} of ${memberIds.length}`;
+        const priorBlockerCount   = priorSubmissions.filter(s =>
+          s.blocker && !/^no\b/i.test(s.blocker.trim())
+        ).length;
+        const priorWinsCount      = priorSubmissions.filter(s =>
+          s.progress && s.progress.trim().length > 0
+        ).length;
+        return `Prior week (${priorWeek}):
+- Submission rate: ${priorSubmissionRate} members
+- Members with progress/wins: ${priorWinsCount}
+- Members with blockers: ${priorBlockerCount}
+- Blocker detail: ${priorSubmissions.map(s => `${displayNameById[s.userId] || s.userId}: ${s.blocker}`).join(' | ')}`;
+      })()
     : null;
 
   const res = await client.chat.completions.create({
@@ -142,18 +160,17 @@ Violation of any rule produces unusable output.`,
 AI mindset:
 - You have read every submission in full
 - You have formed a clear opinion — not a summary
-- You speak with authority to someone who trusts your judgment
 - You surface only what matters — everything else is noise
 - You connect patterns the lead might not see themselves
-- You use <@userId> format for every person mentioned — never plain text names anywhere in the report
+- Use <@userId> for every person — never plain text names
 
 This week: ${submittedIds.size} of ${memberIds.length} members submitted.
 ${priorContext ? `\n${priorContext}\n` : ''}
 Based on the submissions below, return a JSON object with exactly these fields:
 
-- "opening": one sentence that combines delivery signal and risk signal — written with the precision of someone who has read every submission and formed a clear opinion
-- "highlights": array of 3 to 5 sentences — select the wins that actually moved the team forward. Write outcomes not activities — the why, not the what. AI decides what is meaningful — not everything qualifies. Attribution optional — only tag a person when it adds meaningful context, not for every win.
-- "trend": one sentence telling the lead whether the team is improving, stable, or declining — and why it matters for next week${hasPriorData ? '' : ' — set to null because no prior week data is available; never fabricate'}
+- "opening": one sentence — state the single most important thing about this week. Name the specific team, person, or system involved. A reader who knows this team should recognise it instantly. Generic observations that apply to any team are not acceptable.
+- "highlights": array of 3 to 5 sentences — select only wins that moved the team forward. Write outcomes — the impact, not the activity. AI decides what qualifies — not everything does.
+- "trend": one sentence — draw a conclusion from comparing this week to prior week. State what it means for the lead's focus next week.${hasPriorData ? '' : ' Set to null because no prior week data is available; never fabricate.'}
 - "needsAttention": string — 1 to 3 short paragraphs, each covering one person or one root cause. Group multiple blockers from the same person or same root cause into one paragraph. Each paragraph ends with the single most impactful action the lead can take. Written conversationally, direct address to the lead (e.g. "You should..."). Use <@userId> for names. Paragraphs separated by \\n\\n. If no high-severity blockers: set to "No blockers requiring your attention this week."
 - "monitor": string or null — one conversational paragraph covering all medium blockers together. Tells the lead what to watch, not what to do urgently. Use <@userId> for names. If no medium blockers: set to null.
 
@@ -183,8 +200,7 @@ ${surveyText}`,
     );
     report = JSON.parse(raw);
   } catch (err) {
-    console.error('[report] Failed to parse AI response:', err.message);
-    console.error('[report] Raw response:', res.choices[0].message.content);
+    log.error('report.parse_failed', { action: 'parse_ai_response', outcome: 'error' });
     throw err;
   }
 
@@ -251,7 +267,7 @@ ${surveyText}`,
     blocks,
   });
 
-  console.log(`[report] Team lead report sent to ${teamLeadId}`);
+  log.info('report.sent', { action: 'send_report', outcome: 'success' });
 }
 
 module.exports = { generateAndSendLeadReport };

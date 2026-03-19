@@ -3,6 +3,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { getWeekString } = require('../collector');
+const log = require('../logger');
 
 const SUBMISSIONS_DIR = path.join(__dirname, '../../data/submissions');
 
@@ -86,7 +87,7 @@ async function sendDraft(app, userId, draft) {
       },
     ],
   });
-  console.log(`[survey] Draft DM sent to ${userId}`);
+  log.info('survey.draft_sent', { user_id: userId, action: 'send_draft', outcome: 'success' });
 }
 
 // ── Block Kit action handlers ─────────────────────────────────────────────────
@@ -117,7 +118,7 @@ function registerSurveyActions(app) {
       text:    '✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks:  confirmedBlocks(),
     });
-    console.log(`[survey] ${userId} submitted as-is`);
+    log.info('survey.submitted', { user_id: userId, action: 'submit_as_is', outcome: 'success' });
   });
 
   // Edit & Submit button — opens modal
@@ -198,10 +199,10 @@ function registerSurveyActions(app) {
       text:   '✅ Your Productivity Copilot weekly has been submitted. See you next Friday 😊',
       blocks: confirmedBlocks(),
     });
-    console.log(`[survey] ${userId} submitted via modal`);
+    log.info('survey.submitted', { user_id: userId, action: 'submit_via_modal', outcome: 'success' });
   });
 
-  console.log('[survey] Block Kit action handlers registered');
+  log.info('survey.registered', { action: 'register', outcome: 'success' });
 }
 
 module.exports = { sendDraft, registerSurveyActions, hasSubmitted, saveSubmission };

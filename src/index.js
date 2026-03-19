@@ -6,6 +6,8 @@ require('dotenv').config({ path: '.env.local', override: true });
 const { App }    = require('@slack/bolt');
 const cron       = require('node-cron');
 
+const log = require('./logger');
+
 const { registerCollector, getAllMessageUserIds } = require('./collector');
 const { generateDraft }                           = require('./nlp');
 const { sendDraft, registerSurveyActions } = require('./survey');
@@ -25,7 +27,7 @@ function buildCron(day, hour, minute) {
 }
 
 async function runDrafts() {
-  console.log('[cron] Draft time — generating drafts for all users...');
+  log.info('cron.draft_started', { action: 'generate_drafts', outcome: 'started' });
   const userIds = getAllMessageUserIds();
 
   for (const userId of userIds) {
@@ -33,21 +35,21 @@ async function runDrafts() {
       const result = await generateDraft(userId);
       if (result) await sendDraft(app, userId, result.draft);
     } catch (err) {
-      console.error(`[cron] Draft error for ${userId}:`, err.message);
+      log.error('cron.draft_failed', { user_id: userId, action: 'generate_draft', outcome: 'error' });
     }
   }
 }
 
 async function runReport() {
-  console.log('[cron] Report time — generating team lead report...');
-  try { await generateAndSendLeadReport(app); } catch (err) { console.error('[cron] Report error:', err.message); }
+  log.info('cron.report_started', { action: 'generate_report', outcome: 'started' });
+  try { await generateAndSendLeadReport(app); } catch (err) { log.error('cron.report_failed', { action: 'generate_report', outcome: 'error' }); }
 }
 
 (async () => {
   // Resolve bot user ID dynamically
   const auth      = await app.client.auth.test({ token: process.env.SLACK_BOT_TOKEN });
   const botUserId = auth.user_id;
-  console.log(`[init] Bot user ID: ${botUserId}`);
+  log.info('init.bot_resolved', { action: 'resolve_bot_id', outcome: 'success' });
 
   // Register event + action handlers
   registerCollector(app, botUserId);
@@ -67,16 +69,14 @@ async function runReport() {
   const reportHour   = process.env.REPORT_HOUR;
   const reportMinute = process.env.REPORT_MINUTE;
 
-  console.log(`[scheduler] Cutoff: ${cutoffDay} at ${cutoffHour}:${String(cutoffMinute).padStart(2, '0')}`);
-  console.log(`[scheduler] Draft:  ${draftDay} at ${draftHour}:${String(draftMinute).padStart(2, '0')}`);
-  console.log(`[scheduler] Report: ${reportDay} at ${reportHour}:${String(reportMinute).padStart(2, '0')}`);
+  log.info('scheduler.configured', { action: 'schedule_jobs', outcome: 'success' });
 
   cron.schedule(buildCron(draftDay, draftHour, draftMinute), runDrafts, { timezone: tz });
   cron.schedule(buildCron(reportDay, reportHour, reportMinute), runReport, { timezone: tz });
 
   await app.start();
-  console.log('Productivity Copilot is running in Socket Mode');
+  log.info('app.started', { action: 'start', outcome: 'success' });
 })().catch(err => {
-  console.error('[fatal]', err.message);
+  log.error('app.fatal', { action: 'start', outcome: 'fatal_error' });
   process.exit(1);
 });
