@@ -25,6 +25,7 @@ function saveSubmission(userId, answers) {
   const now   = new Date();
   const entry = {
     userId,
+    userName:    answers.userName || userId,
     week:        getWeekString(),
     submittedAt: now.toISOString(),
     progress:    answers.progress,
@@ -104,6 +105,7 @@ function registerSurveyActions(app) {
     const userId = body.user.id;
     const draft  = JSON.parse(body.actions[0].value);
     saveSubmission(userId, {
+      userName: body.user.name,
       progress: draft.progress,
       blocker:  draft.blocker,
       support:  draft.support,
@@ -181,6 +183,7 @@ function registerSurveyActions(app) {
     const values = view.state.values;
 
     const answers = {
+      userName: body.user.name,
       progress: values.progress_block.progress.value,
       blocker:  values.blocker_block.blocker.value,
       support:  values.support_block.support.value,

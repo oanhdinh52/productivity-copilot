@@ -9,7 +9,7 @@ const cron       = require('node-cron');
 const { registerCollector, getAllMessageUserIds } = require('./collector');
 const { generateDraft }                           = require('./nlp');
 const { sendDraft, registerSurveyActions } = require('./survey');
-const { generateAndPostReports }                  = require('./report');
+const { generateAndSendLeadReport }               = require('./report');
 
 const app = new App({
   token:      process.env.SLACK_BOT_TOKEN,
@@ -39,8 +39,8 @@ async function runDrafts() {
 }
 
 async function runReport() {
-  console.log('[cron] Report time — generating reports...');
-  try { await generateAndPostReports(app); } catch (err) { console.error('[cron] Report error:', err.message); }
+  console.log('[cron] Report time — generating team lead report...');
+  try { await generateAndSendLeadReport(app); } catch (err) { console.error('[cron] Report error:', err.message); }
 }
 
 (async () => {

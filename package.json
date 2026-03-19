@@ -7,6 +7,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "draft": "node scripts/draft.js",
+    "report": "node scripts/report.js",
     "prody:start": "pm2 start ecosystem.config.js",
     "prody:stop": "pm2 stop prody",
     "prody:restart": "pm2 restart prody",
