@@ -12,6 +12,7 @@ const { registerCollector, getAllMessageUserIds } = require('./collector');
 const { generateDraft }                           = require('./nlp');
 const { sendDraft, registerSurveyActions } = require('./survey');
 const { generateAndSendLeadReport }               = require('./report');
+const { generateAndSendDeptReport }               = require('./report/dept-report');
 
 const app = new App({
   token:      process.env.SLACK_BOT_TOKEN,
@@ -45,6 +46,11 @@ async function runReport() {
   try { await generateAndSendLeadReport(app); } catch (err) { log.error('cron.report_failed', { action: 'generate_report', outcome: 'error' }); }
 }
 
+async function runDeptReport() {
+  log.info('cron.dept_report_started', { action: 'generate_dept_report', outcome: 'started' });
+  try { await generateAndSendDeptReport(app); } catch (err) { log.error('cron.dept_report_failed', { action: 'generate_dept_report', outcome: 'error' }); }
+}
+
 (async () => {
   // Resolve bot user ID dynamically
   const auth      = await app.client.auth.test({ token: process.env.SLACK_BOT_TOKEN });
@@ -69,10 +75,15 @@ async function runReport() {
   const reportHour   = process.env.REPORT_HOUR;
   const reportMinute = process.env.REPORT_MINUTE;
 
+  const deptReportDay    = process.env.DEPT_REPORT_DAY;
+  const deptReportHour   = process.env.DEPT_REPORT_HOUR;
+  const deptReportMinute = process.env.DEPT_REPORT_MINUTE;
+
   log.info('scheduler.configured', { action: 'schedule_jobs', outcome: 'success' });
 
   cron.schedule(buildCron(draftDay, draftHour, draftMinute), runDrafts, { timezone: tz });
   cron.schedule(buildCron(reportDay, reportHour, reportMinute), runReport, { timezone: tz });
+  cron.schedule(buildCron(deptReportDay, deptReportHour, deptReportMinute), runDeptReport, { timezone: tz });
 
   await app.start();
   log.info('app.started', { action: 'start', outcome: 'success' });

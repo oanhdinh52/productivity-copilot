@@ -6,9 +6,9 @@ const path            = require('path');
 const { getWeekString } = require('../collector');
 const log = require('../logger');
 const { parseAiJson, buildSystemPrompt, plural } = require('./utils');
-const { prepareTeamLeadData } = require('./preparers/team-lead-data');
+const { prepareDeptData } = require('./preparers/dept-data');
 
-const SKILL_FILE = path.join(__dirname, '../../AI-SKILL.md');
+const SKILL_FILE = path.join(__dirname, '../../reports/dept-report.md');
 
 const SUBMISSIONS_DIR = path.join(__dirname, '../../data/submissions');
 
@@ -25,7 +25,6 @@ function buildClient() {
   });
 }
 
-// "Mar 16, 2026" from "2026-W12"
 function getWeekDateRange(weekStr) {
   const [yearStr, weekPart] = weekStr.split('-W');
   const year = parseInt(yearStr, 10);
@@ -67,7 +66,6 @@ function loadSubmissionsForWeek(memberIds, weekStr) {
   return results;
 }
 
-// Resolve display names from Slack API for all member IDs
 async function resolveDisplayNames(app, memberIds) {
   const map = {};
   await Promise.all(memberIds.map(async id => {
@@ -83,13 +81,13 @@ async function resolveDisplayNames(app, memberIds) {
 }
 
 
-async function generateAndSendLeadReport(app) {
-  const teamLeadId = process.env.TEAM_LEAD_ID;
-  const memberIds  = (process.env.TEAM_MEMBER_IDS || '')
+async function generateAndSendDeptReport(app) {
+  const deptManagerId = process.env.DEPT_MANAGER_ID;
+  const memberIds     = (process.env.DEPT_MEMBER_IDS || '')
     .split(',').map(s => s.trim()).filter(Boolean);
 
-  if (!teamLeadId) {
-    log.warn('report.skipped', { action: 'generate_report', outcome: 'no_team_lead_id' });
+  if (!deptManagerId) {
+    log.warn('dept_report.skipped', { action: 'generate_dept_report', outcome: 'no_dept_manager_id' });
     return;
   }
 
@@ -100,7 +98,7 @@ async function generateAndSendLeadReport(app) {
   const priorSubmissions = loadSubmissionsForWeek(memberIds, priorWeek);
 
   if (!submissions.length) {
-    log.info('report.skipped', { action: 'generate_report', outcome: 'no_submissions' });
+    log.info('dept_report.skipped', { action: 'generate_dept_report', outcome: 'no_submissions' });
     return;
   }
 
@@ -109,22 +107,20 @@ async function generateAndSendLeadReport(app) {
   const displayNameById = await resolveDisplayNames(app, memberIds);
 
   const client                      = buildClient();
-  const surveyText                  = prepareTeamLeadData(submissions, displayNameById);
+  const surveyText                  = prepareDeptData(submissions, displayNameById);
   const { weekNum, monStr, friStr } = getWeekDateRange(week);
 
-  // Build prior week context for trend
   const hasPriorData = priorSubmissions.length > 0;
   const priorContext = hasPriorData
     ? (() => {
-        const priorSubmissionRate = `${priorSubmissions.length} of ${memberIds.length}`;
-        const priorBlockerCount   = priorSubmissions.filter(s =>
+        const priorBlockerCount = priorSubmissions.filter(s =>
           s.blocker && !/^no\b/i.test(s.blocker.trim())
         ).length;
-        const priorWinsCount      = priorSubmissions.filter(s =>
+        const priorWinsCount = priorSubmissions.filter(s =>
           s.progress && s.progress.trim().length > 0
         ).length;
         return `Prior week (${priorWeek}):
-- Submission rate: ${priorSubmissionRate} ${plural(memberIds.length, 'member')}
+- Submission rate: ${priorSubmissions.length} of ${plural(memberIds.length, 'member')}
 - Members with progress/wins: ${priorWinsCount}
 - Members with blockers: ${priorBlockerCount}
 - Blocker detail: ${priorSubmissions.map(s => `${displayNameById[s.userId] || s.userId}: ${s.blocker}`).join(' | ')}`;
@@ -140,26 +136,29 @@ async function generateAndSendLeadReport(app) {
       },
       {
         role:    'user',
-        content: `You are generating a Team Lead Report — a trusted advisor briefing, not a data dump.
+        content: `You are generating a Department Manager Report. Your altitude is strategic — patterns, trajectory, decisions.
 
 AI mindset:
-- You have read every submission in full
-- You have formed a clear opinion — not a summary
-- You surface only what matters — everything else is noise
-- You connect patterns the lead might not see themselves
+- This is a strategic narrative, not an operational list — every word must earn its place
+- The manager thinks in sprints and quarters, manages through team leads, acts on systemic risks
+- You are answering one question: "Is this department building momentum or losing it?"
+- Systemic themes only — never individual task details
+- Connect this week to the bigger picture
+- Nothing a team lead can handle belongs here
 - Use <@userId> for every person — never plain text names
+- No emoji anywhere in the report
 
 This week: ${submittedIds.size} of ${plural(memberIds.length, 'member')} submitted.
 ${priorContext ? `\n${priorContext}\n` : ''}
 Based on the submissions below, return a JSON object with exactly these fields:
 
-- "opening": one sentence — state the single most important thing about this week. Name the specific team, person, or system involved. A reader who knows this team should recognise it instantly. Generic observations that apply to any team are not acceptable.
-- "highlights": array of 3 to 5 sentences — select only wins that moved the team forward. Write outcomes — the impact, not the activity. AI decides what qualifies — not everything does.
-- "trend": one sentence — draw a conclusion from comparing this week to prior week. State what it means for the lead's focus next week.${hasPriorData ? '' : ' Set to null because no prior week data is available; never fabricate.'}
-- "needsAttention": string — 1 to 3 short paragraphs, each covering one person or one root cause. Group multiple blockers from the same person or same root cause into one paragraph. Each paragraph ends with the single most impactful action the lead can take. Written conversationally, direct address to the lead (e.g. "You should..."). Use <@userId> for names. Paragraphs separated by \\n\\n. If no high-severity blockers: set to "No blockers requiring your attention this week."
-- "monitor": string or null — one conversational paragraph covering all medium blockers together. Tells the lead what to watch, not what to do urgently. Use <@userId> for names. If no medium blockers: set to null.
+- "story": string — one to two paragraphs. The heart of the report. Tell the department head what kind of week it was and what it means for where the department is heading. Never reference specific activities even as context — that is task-level detail belonging in the team lead report. If progress happened, speak about its strategic implication, not the activity itself. Speak about team capability, momentum, and systemic patterns. This report speaks one level above the team lead. Connect this week to the bigger picture. Paragraphs separated by \\n\\n.
 
-When referring to a person always use the Slack mention format <@userId> using the userId from the submission data. No emoji anywhere.
+- "yourDecision": string or null — one strategic decision or cross-department escalation that requires the manager's authority. Maximum 3 sentences: first the situation, then why it requires the manager specifically, then the action. Omit entirely (set to null) if nothing genuinely qualifies — do not force an escalation.
+
+- "trajectory": string or null — exactly 2 sentences. First sentence: direction (improving, stable, or declining) with real numbers from this week vs prior week — blocker count and delivery momentum only, never submission rate. Second sentence: implication for the manager's focus next week.${hasPriorData ? '' : ' Set to null because no prior week data is available — never fabricate.'}
+
+When referring to a person always use the Slack mention format <@userId> using the userId from the submission data.
 
 This week's submissions:
 ${surveyText}`,
@@ -171,74 +170,51 @@ ${surveyText}`,
   try {
     report = parseAiJson(res.choices[0].message.content);
   } catch (err) {
-    log.error('report.parse_failed', { action: 'parse_ai_response', outcome: 'error' });
+    log.error('dept_report.parse_failed', { action: 'parse_ai_response', outcome: 'error' });
     throw err;
   }
 
-  // ── Block Kit blocks ──────────────────────────────────────────────────────
   const blocks = [];
 
   // 1. Header
-  const headerTitle = `Team Pulse — Week ${weekNum} · ${monStr} to ${friStr}`;
+  const headerTitle = `Department Pulse — Week ${weekNum} · ${monStr} to ${friStr}`;
   blocks.push({
     type: 'header',
     text: { type: 'plain_text', text: headerTitle, emoji: false },
   });
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `${plural(memberIds.length, 'member')} · ${submittedIds.size} submitted · ${notSubmittedIds.length} not submitted`,
-    },
-  });
 
-  // 2. Not Submitted (conditional — omit if all submitted)
-  if (notSubmittedIds.length > 0) {
-    const mentions = notSubmittedIds.map(id => `<@${id}>`).join(', ');
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: `Not submitted: ${mentions}` },
-    });
-  }
-
-  // 3. This Week — opening + highlights + trend
-  blocks.push({ type: 'divider' });
-  const highlightLines = (report.highlights || []).map(h => `• ${h}`).join('\n');
-  const trendLine      = report.trend ? `\n\n${report.trend}` : '';
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `*This Week*\n${report.opening}\n\n${highlightLines}${trendLine}`,
-    },
-  });
-
-  // 4. Needs Your Attention
+  // 2. The Story
   blocks.push({ type: 'divider' });
   blocks.push({
     type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `*Needs Your Attention*\n${report.needsAttention || 'No blockers requiring your attention this week.'}`,
-    },
+    text: { type: 'mrkdwn', text: `*The Story*\n${report.story}` },
   });
 
-  // 5. Monitor (omit if none)
-  if (report.monitor) {
+  // 3. Your Decision (conditional — omit if null)
+  if (report.yourDecision) {
     blocks.push({ type: 'divider' });
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: `*Monitor*\n${report.monitor}` },
+      text: { type: 'mrkdwn', text: `*Your Decision*\n${report.yourDecision}` },
+    });
+  }
+
+  // 4. The Trajectory (conditional — omit if null)
+  if (report.trajectory) {
+    blocks.push({ type: 'divider' });
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*The Trajectory*\n${report.trajectory}` },
     });
   }
 
   await app.client.chat.postMessage({
-    channel: teamLeadId,
+    channel: deptManagerId,
     text:    headerTitle,
     blocks,
   });
 
-  log.info('report.sent', { action: 'send_report', outcome: 'success' });
+  log.info('dept_report.sent', { action: 'send_dept_report', outcome: 'success' });
 }
 
-module.exports = { generateAndSendLeadReport };
+module.exports = { generateAndSendDeptReport };
